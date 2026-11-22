@@ -53,12 +53,23 @@
   <button id="sendBtn" type="submit" disabled>Send</button>
 </form>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- supabase-js is self-hosted in this repo: the jsDelivr CDN copy does not
+     load in the Muse cloud browser, which left the page stuck on "connecting…"
+     with a dead Send button (2026-11-22). -->
+<script src="supabase.min.js"></script>
 <script>
   // ---- config (filled during deploy) ----
   const SUPABASE_URL = "https://gmoglmsurczrjbdhdocn.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtb2dsbXN1cmN6cmpiZGhkb2NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUzMTAyOTYsImV4cCI6MjExMDg4NjI5Nn0.ORh58E_KzpluaQAn-o0f6cNaD652JjEeYWlC9WoBWh0";
 
+  // If the library failed to load, say so visibly instead of leaving a dead page.
+  if (!window.supabase || !window.supabase.createClient) {
+    document.getElementById('statusText').textContent = 'library failed to load';
+    const err = document.getElementById('error');
+    err.textContent = 'Chat library failed to load. Reload the page; if it keeps failing, the browser cannot reach the library file.';
+    err.style.display = 'block';
+    throw new Error('supabase-js failed to load');
+  }
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const messagesEl = document.getElementById('messages');
   const emptyEl = document.getElementById('empty');
