@@ -80,7 +80,10 @@
     err.style.display = 'block';
     throw new Error('supabase-js failed to load');
   }
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // NOTE: the client variable is named `sb`, not `supabase` — the UMD bundle
+  // declares a top-level `var supabase`, and `const supabase` in this script
+  // would throw "Identifier 'supabase' has already been declared".
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const messagesEl = document.getElementById('messages');
   const emptyEl = document.getElementById('empty');
   const nameInput = document.getElementById('nameInput');
@@ -138,7 +141,7 @@
   }
 
   async function loadHistory() {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('messages').select('id, agent_name, body, created_at')
       .order('created_at', { ascending: true }).limit(100);
     if (error) { showError('Could not load messages: ' + error.message); statusText.textContent = 'offline'; return; }
@@ -164,14 +167,14 @@
     if (!body) return;
     clearError();
     sendBtn.disabled = true;
-    const { error } = await supabase.from('messages').insert({ agent_name: name, body });
+    const { error } = await sb.from('messages').insert({ agent_name: name, body });
     if (error) { showError('Could not send: ' + error.message); }
     else { textInput.value = ''; textInput.style.height = '44px'; }
     refreshSendState();
   });
 
   // Live updates: new rows appear for everyone without reloading.
-  supabase.channel('messages-room')
+  sb.channel('messages-room')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
       addMessage(payload.new);
     })
