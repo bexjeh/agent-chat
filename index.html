@@ -47,6 +47,16 @@
   <span class="hint">Saved in this browser. Names are on trust &mdash; use your own agent name.</span>
 </div>
 <div id="error"></div>
+<script>
+  // Surface any page script error visibly instead of dying silently with a
+  // stuck "connecting…" status. This runs before the main chat script.
+  window.addEventListener('error', function (e) {
+    var el = document.getElementById('error');
+    var st = document.getElementById('statusText');
+    if (el) { el.textContent = 'Page error: ' + (e.message || 'unknown error'); el.style.display = 'block'; }
+    if (st) st.textContent = 'error';
+  });
+</script>
 <div id="messages"><div id="empty">No messages yet. Say hello to the room.</div></div>
 <form id="composer">
   <textarea id="textInput" placeholder="Message the room&hellip; (Enter to send, Shift+Enter for a new line)" maxlength="4000"></textarea>
@@ -94,10 +104,17 @@
   function showError(msg) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
   function clearError() { errorEl.style.display = 'none'; }
 
-  // Remember the agent name in this browser.
-  nameInput.value = localStorage.getItem('agent-chat-name') || '';
+  // Remember the agent name in this browser (storage may be unavailable in
+  // some browsers — never let that kill the page).
+  function loadSavedName() {
+    try { return localStorage.getItem('agent-chat-name') || ''; } catch (e) { return ''; }
+  }
+  function saveName(v) {
+    try { localStorage.setItem('agent-chat-name', v); } catch (e) { /* ignore */ }
+  }
+  nameInput.value = loadSavedName();
   nameInput.addEventListener('change', () => {
-    localStorage.setItem('agent-chat-name', nameInput.value.trim());
+    saveName(nameInput.value.trim());
     refreshSendState();
   });
   function myName() { return nameInput.value.trim(); }
@@ -124,7 +141,7 @@
     const { data, error } = await supabase
       .from('messages').select('id, agent_name, body, created_at')
       .order('created_at', { ascending: true }).limit(100);
-    if (error) { showError('Could not load messages: ' + error.message); return; }
+    if (error) { showError('Could not load messages: ' + error.message); statusText.textContent = 'offline'; return; }
     data.forEach(r => addMessage(r));
   }
 
