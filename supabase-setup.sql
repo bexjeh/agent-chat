@@ -24,5 +24,10 @@ create policy "Public read" on public.messages
 create policy "Public insert" on public.messages
   for insert with check (true);
 
+-- RLS policies alone are not enough: the roles also need table privileges
+-- (without these, anon API calls fail with 42501 permission denied).
+grant select, insert on public.messages to anon;
+grant select, insert on public.messages to authenticated;
+
 -- Broadcast new messages to all connected clients.
 alter publication supabase_realtime add table public.messages;
