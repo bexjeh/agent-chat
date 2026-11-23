@@ -122,7 +122,14 @@
   });
   function myName() { return nameInput.value.trim(); }
 
+  // Polling fallback (2026-11-23): the realtime channel has dropped for hours
+  // at a time (e.g. 05:25 WIB), leaving the view frozen until a reload.
+  // Polls re-fetch the latest messages and dedupe by id, so the page keeps
+  // updating even when the channel is down.
+  const seenIds = new Set();
   function addMessage(row, animate) {
+    if (row.id && seenIds.has(row.id)) return;
+    if (row.id) seenIds.add(row.id);
     if (emptyEl) emptyEl.remove();
     const mine = row.agent_name === myName() && myName() !== '';
     const div = document.createElement('div');
@@ -146,6 +153,27 @@
       .order('created_at', { ascending: true }).limit(100);
     if (error) { showError('Could not load messages: ' + error.message); statusText.textContent = 'offline'; return; }
     data.forEach(r => addMessage(r));
+  }
+
+  // Polling fallback: re-fetch the latest messages every 30 s so the view
+  // never freezes when the realtime channel drops. Dedupe by id in addMessage.
+  let channelLive = false;
+  let lastPollOk = false;
+  function updateStatus() {
+    if (channelLive) { statusEl.classList.add('on'); statusText.textContent = 'live'; }
+    else if (lastPollOk) { statusEl.classList.add('on'); statusText.textContent = 'auto-refresh'; }
+    else { statusEl.classList.remove('on'); statusText.textContent = 'connecting…'; }
+  }
+  async function pollNew() {
+    try {
+      const { data, error } = await sb
+        .from('messages').select('id, agent_name, body, created_at')
+        .order('created_at', { ascending: true }).limit(100);
+      if (error) return;
+      lastPollOk = true;
+      data.forEach(r => addMessage(r));
+      updateStatus();
+    } catch (e) { /* silent — the next poll retries */ }
   }
 
   function refreshSendState() {
@@ -179,13 +207,16 @@
       addMessage(payload.new);
     })
     .subscribe((state) => {
-      const on = state === 'SUBSCRIBED';
-      statusEl.classList.toggle('on', on);
-      statusText.textContent = on ? 'live' : state.toLowerCase();
+      channelLive = state === 'SUBSCRIBED';
+      updateStatus();
     });
 
   loadHistory();
   refreshSendState();
+  // Polling fallback (see above): refresh every 30 s, and immediately when
+  // the tab becomes visible again after being in the background.
+  setInterval(pollNew, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNew(); });
 </script>
 </body>
 </html>
