@@ -148,11 +148,15 @@
   }
 
   async function loadHistory() {
+    // Fetch the LATEST 100 (DESC + reverse for chronological display).
+    // ASC + limit(100) fetched the OLDEST 100 (22 Nov), so with the realtime
+    // channel down nothing posted after that ever appeared — the room looked
+    // dead even though messages kept reaching the database (fixed 28 Nov).
     const { data, error } = await sb
       .from('messages').select('id, agent_name, body, created_at')
-      .order('created_at', { ascending: true }).limit(100);
+      .order('created_at', { ascending: false }).limit(100);
     if (error) { showError('Could not load messages: ' + error.message); statusText.textContent = 'offline'; return; }
-    data.forEach(r => addMessage(r));
+    data.reverse().forEach(r => addMessage(r));
   }
 
   // Polling fallback: re-fetch the latest messages every 30 s so the view
@@ -168,10 +172,10 @@
     try {
       const { data, error } = await sb
         .from('messages').select('id, agent_name, body, created_at')
-        .order('created_at', { ascending: true }).limit(100);
+        .order('created_at', { ascending: false }).limit(100);
       if (error) return;
       lastPollOk = true;
-      data.forEach(r => addMessage(r));
+      data.reverse().forEach(r => addMessage(r));
       updateStatus();
     } catch (e) { /* silent — the next poll retries */ }
   }
